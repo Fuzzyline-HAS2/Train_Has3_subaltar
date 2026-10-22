@@ -51,17 +51,32 @@ int NextionGetNum(const char *cmd)
 }
 
 /**
- * @brief 서버 selected_language 와 Nextion vLanguage 를 동기화
- *        값이 다를 때만 Nextion 으로 전송 (0=EN, 1=KO)
+ * @brief 서버 selected_language 와 Nextion vLanguage 를 동기화 (0=EN, 1=KO)
+ *        vLanguage 는 매번 다시 써서 전송이 누락돼도 다음 동기화에서 복구한다.
+ *        vLanguage 는 페이지 진입 때만 화면에 반영되므로, 언어가 바뀌면
+ *        page dp 로 지금 페이지를 다시 불러 새 언어로 그린다.
  */
 void SyncLanguage()
 {
-    int target = ((String)(const char *)shift_machine["selected_language"] == "EN") ? 0 : 1;
+    const char *lang = shift_machine["selected_language"];
+    if (lang == nullptr || strlen(lang) == 0)
+    {
+        return;  // Loop 응답을 받기 전에는 언어를 모름
+    }
+
+    int target = (strcmp(lang, "EN") == 0) ? 0 : 1;
+    String cmd = "pgSetting.vLanguage.val=" + String(target);
+    sendCommand(cmd.c_str());
+
     if (nextion_language != target)
     {
-        String cmd = "pgSetting.vLanguage.val=" + String(target);
-        sendCommand(cmd.c_str());
         nextion_language = target;
+        sendCommand("page dp");
+        // 페이지를 다시 불러오면 pgChipCount 의 칩 수치가 HMI 기본값으로 돌아간다.
+        cmd = "pgChipCount.vMaxChip.val=" + (String)(int)my["max_chip"];
+        sendCommand(cmd.c_str());
+        cmd = "pgChipCount.vSacrificeChip.val=" + (String)(int)my["taken_chip"];
+        sendCommand(cmd.c_str());
     }
 }
 
